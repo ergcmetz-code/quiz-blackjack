@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-DATA_FILE = "questions.json"
+DATA_FILE = "/data/questions.json" if os.path.exists("/data") else "questions.json"
 
 DEFAULT_QUESTIONS = [
     {
