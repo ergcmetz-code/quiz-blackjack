@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Console Boutons iPad</title>
+    <style>
+        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; user-select: none; }
+        .grid-players { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; height: 95vh; }
+        .player-zone { border: 2px solid #444; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 10px; background: #1a1a1a;}
+        .player-header { border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; text-align: center;}
+        .player-title { font-weight: bold; font-size: 1.4em; color: gold; }
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex-grow: 1; }
+        .arcade-btn { border: none; border-radius: 50%; font-size: 1.6em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px #444;}
+        .arcade-btn:active { box-shadow: 0 2px #444; transform: translateY(4px); }
+        .btn-0 { background: #ff3b30; }
+        .btn-1 { background: #007aff; }
+        .btn-2 { background: #34c759; }
+        .btn-3 { background: #ffcc00; }
+    </style>
+</head>
+<body>
+
+    <div class="grid-players">
+        <script>
+            for (let p = 1; p <= 4; p++) {
+                document.write(`
+                    <div class="player-zone">
+                        <div class="player-header">
+                            <div class="player-title" id="title-${p}">Joueur ${p}</div>
+                        </div>
+                        <div class="button-group">
+                            <button class="arcade-btn btn-0" onclick="press(${p}, 0)">A</button>
+                            <button class="arcade-btn btn-1" onclick="press(${p}, 1)">B</button>
+                            <button class="arcade-btn btn-2" onclick="press(${p}, 2)">C</button>
+                            <button class="arcade-btn btn-3" onclick="press(${p}, 3)">D</button>
+                        </div>
+                    </div>
+                `);
+            }
+
+            function press(player, buttonIdx) {
+                fetch('/api/press', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ player: player, button: buttonIdx })
+                });
+            }
+
+            function refreshNames() {
+                fetch('/api/state')
+                    .then(res => res.json())
+                    .then(data => {
+                        for(let i=1; i<=4; i++) {
+                            document.getElementById(`title-${i}`).innerText = data.names[i];
+                        }
+                    });
+            }
+
+            // Rafraîchit les prénoms toutes les secondes sur l'iPad
+            setInterval(refreshNames, 1000);
+            refreshNames();
+        </script>
+    </div>
+
+</body>
+</html>

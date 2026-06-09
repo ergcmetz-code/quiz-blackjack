@@ -1,0 +1,12 @@
+[
+    {
+        "question": "Quelle est la couleur du cheval blanc d'Henri IV ?",
+        "options": [
+            "Bleu",
+            "Blanc",
+            "Rouge",
+            "Vert"
+        ],
+        "correct": 1
+    }
+]
