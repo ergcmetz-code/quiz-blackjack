@@ -1,107 +1,132 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>Blackjack Quiz - Écran Public</title>
-    <style>
-        body { 
-            font-family: 'Arial', sans-serif; 
-            background-color: #0b6623; 
-            color: white; 
-            text-align: center; 
-            margin: 0; 
-            padding: 40px; 
-            overflow: hidden;
-        }
-        .quiz-container { 
-            background: rgba(0,0,0,0.85); 
-            padding: 40px; 
-            border-radius: 20px; 
-            max-width: 1000px; 
-            margin: 50px auto; 
-            box-shadow: 0 0 30px gold; 
-        }
-        h1 { 
-            color: gold; 
-            font-size: 3em; 
-            margin-bottom: 10px; 
-            text-shadow: 2px 2px 4px black;
-        }
-        .q-counter {
-            font-size: 1.5em;
-            color: #ddd;
-            margin-bottom: 30px;
-        }
-        #question-text {
-            font-size: 2.5em;
-            margin-bottom: 40px;
-            line-height: 1.4;
-        }
-        .options { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 25px; 
-        }
-        .option { 
-            padding: 25px; 
-            background: #222; 
-            border: 4px solid #fff; 
-            border-radius: 12px; 
-            font-size: 1.8em; 
-            font-weight: bold;
-        }
-        .status-alert { 
-            font-size: 3em; 
-            margin-top: 40px; 
-            height: 80px; 
-            color: #00ffff; 
-            font-weight: bold;
-            text-shadow: 2px 2px 4px black;
-        }
-    </style>
-</head>
-<body>
+from flask import Flask, render_template, jsonify, request
+import json
+import os
 
-    <h1>♣ ♦ BLACKJACK QUIZ ♥ ♠</h1>
-    <div class="q-counter">Question <span id="q-number">0/0</span></div>
+app = Flask(__name__)
+
+DATA_FILE = "questions.json"
+
+DEFAULT_QUESTIONS = [
+    {
+        "question": "Quelle est la couleur du cheval blanc d'Henri IV ?",
+        "options": ["Bleu", "Blanc", "Rouge", "Vert"],
+        "correct": 1
+    }
+]
+
+def load_questions():
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(DEFAULT_QUESTIONS, f, indent=4, ensure_ascii=False)
+        return DEFAULT_QUESTIONS
+    with open(DATA_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_questions(questions):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(questions, f, indent=4, ensure_ascii=False)
+
+questions = load_questions()
+
+# VARIABLES TEMPORAIRES (Mémoire RAM uniquement)
+players_names = {"1": "Joueur 1", "2": "Joueur 2", "3": "Joueur 3", "4": "Joueur 4"}
+players_scores = {"1": 0, "2": 0, "3": 0, "4": 0}
+
+game_state = {
+    "current_question_idx": 0,
+    "buzzed_player": None,
+    "selected_answer": None,
+    "status": "waiting",
+}
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/public')
+def public():
+    return render_template('public.html')
+
+@app.route('/buzzers')
+def buzzers():
+    return render_template('buzzers.html')
+
+@app.route('/api/state')
+def get_state():
+    if not questions:
+        return jsonify({"error": "No questions"})
     
-    <div class="quiz-container">
-        <div id="question-text">Chargement de la question...</div>
-        <div class="options">
-            <div class="option" id="opt-0">A</div>
-            <div class="option" id="opt-1">B</div>
-            <div class="option" id="opt-2">C</div>
-            <div class="option" id="opt-3">D</div>
-        </div>
+    q = questions[game_state["current_question_idx"]]
+    return jsonify({
+        "question": q["question"],
+        "options": q["options"],
+        "buzzed_player": game_state["buzzed_player"],
+        "selected_answer": game_state["selected_answer"],
+        "names": players_names,
+        "scores": players_scores,
+        "status": game_state["status"],
+        "total_questions": len(questions),
+        "current_idx": game_state["current_question_idx"]
+    })
+
+@app.route('/api/press', methods=['POST'])
+def press_button():
+    data = request.json
+    player = str(data.get('player'))
+    button_idx = int(data.get('button'))
+
+    if game_state["status"] == "waiting":
+        game_state["buzzed_player"] = player
+        game_state["selected_answer"] = button_idx
+        game_state["status"] = "answered"
         
-        <div class="status-alert" id="status-text"></div>
-    </div>
+        correct_idx = questions[game_state["current_question_idx"]]["correct"]
+        if button_idx == correct_idx:
+            players_scores[player] += 1
+            
+        return jsonify({"result": "success"})
+    return jsonify({"result": "ignored"})
 
-    <script>
-        function updatePublicScreen() {
-            fetch('/api/state')
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('q-number').innerText = (data.current_idx + 1) + "/" + data.total_questions;
-                    document.getElementById('question-text').innerText = data.question;
-                    document.getElementById('opt-0').innerText = "A: " + data.options[0];
-                    document.getElementById('opt-1').innerText = "B: " + data.options[1];
-                    document.getElementById('opt-2').innerText = "C: " + data.options[2];
-                    document.getElementById('opt-3').innerText = "D: " + data.options[3];
+@app.route('/api/next', methods=['POST'])
+def next_question():
+    game_state["buzzed_player"] = None
+    game_state["selected_answer"] = None
+    game_state["status"] = "waiting"
+    game_state["current_question_idx"] = (game_state["current_question_idx"] + 1) % len(questions)
+    return jsonify({"status": "next"})
 
-                    if(data.status === "answered") {
-                        let pName = data.names[data.buzzed_player];
-                        let letter = ["A", "B", "C", "D"][data.selected_answer];
-                        document.getElementById('status-text').innerText = `${pName} a bloqué la réponse [ ${letter} ] !`;
-                    } else {
-                        document.getElementById('status-text').innerText = "À vos buzzers !";
-                    }
-                });
-        }
+@app.route('/api/add_question', methods=['POST'])
+def add_question():
+    global questions
+    data = request.json
+    new_q = {
+        "question": data.get('question'),
+        "options": [data.get('opt0'), data.get('opt1'), data.get('opt2'), data.get('opt3')],
+        "correct": int(data.get('correct'))
+    }
+    questions.append(new_q)
+    save_questions(questions)
+    return jsonify({"status": "added"})
 
-        // Synchronisation rapide (toutes les 300ms) pour que l'affichage soit instantané
-        setInterval(updatePublicScreen, 300);
-        updatePublicScreen();
-    </script>
-</body>
-</html>
+@app.route('/api/set_name', methods=['POST'])
+def set_name():
+    data = request.json
+    player = str(data.get('player'))
+    name = data.get('name')
+    if name.strip():
+        players_names[player] = name
+    return jsonify({"status": "name_updated"})
+
+@app.route('/api/reset_game', methods=['POST'])
+def reset_game():
+    global players_names, players_scores
+    players_names = {"1": "Joueur 1", "2": "Joueur 2", "3": "Joueur 3", "4": "Joueur 4"}
+    players_scores = {"1": 0, "2": 0, "3": 0, "4": 0}
+    game_state["current_question_idx"] = 0
+    game_state["buzzed_player"] = None
+    game_state["selected_answer"] = None
+    game_state["status"] = "waiting"
+    return jsonify({"status": "reset"})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
